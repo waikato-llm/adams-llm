@@ -1,0 +1,9 @@
+*~
+*.bak
+*.swp
+test*
+blah*
+*.iml
+.idea/
+test/
+
