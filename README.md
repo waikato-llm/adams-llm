@@ -1,2 +1,7 @@
 # adams-llm
-ADAMS workflows for dealing with LLM datasets etc.
+[ADAMS](https://adams.cms.waikato.ac.nz) workflows for dealing with LLM datasets etc.
+
+## Workflows
+
+* ...
+
