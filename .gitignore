@@ -6,4 +6,5 @@ blah*
 *.iml
 .idea/
 test/
+*.props
 
