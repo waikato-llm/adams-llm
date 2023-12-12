@@ -3,5 +3,7 @@
 
 ## Workflows
 
-* ...
+* [compare-translated-alpaca.flow](compare-translated-alpaca.flow) - allows comparing
+  original and translated records (Alpaca JSON format) and whether to keep or discard
+  them (i.e., cleaning up a dataset).
 
