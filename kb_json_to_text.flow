@@ -1,0 +1,52 @@
+# Project: adams
+# Date: 2024-08-09 11:57:26
+# User: fracpete
+# Charset: UTF-8
+# Modules: adams-annotator,adams-audio,adams-compress,adams-core,adams-docker,adams-event,adams-excel,adams-ffmpeg,adams-groovy,adams-imaging,adams-imaging-boofcv,adams-imaging-ext,adams-json,adams-math,adams-meta,adams-ml,adams-net,adams-odf,adams-opencv,adams-pdf,adams-pyro4,adams-python,adams-random,adams-rats-core,adams-redis,adams-spreadsheet,adams-terminal,adams-video,adams-visualstats,adams-weka,adams-xml,adams-yaml
+#
+adams.flow.control.Flow -annotation "Generates a text file with a subset of answers based on specific filters." -flow-execution-listener adams.flow.execution.NullListener -flow-restart-manager adams.flow.control.flowrestart.NullManager
+ adams.flow.source.Start
+ adams.flow.control.Trigger -name "prompt user"
+  adams.flow.standalone.SetVariable -name "restore file" -var-name restore -var-value @{flow_filename_long}.props -value-type FILE_FORWARD_SLASHES -expand-value true
+  adams.flow.source.EnterManyValues -name Parameters -stop-if-canceled true -value "adams.flow.source.valuedefinition.DirectoryValueDefinition -name input_dir -display \"Input dir\" -help \"the dir with the JSON files to process\" -file-chooser-title \"Input dir\" -use-forward-slashes true -use-absolute-path true" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name run_no -display \"Run no\" -help \"the run number to extract\" -type INTEGER -default-value 1" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name prompt -display Prompt -help \"the prompt type to extract\" -default-value default_maoriresponse" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name context -display Context -help \"the context type to extract\" -default-value none" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name search -display Search -help \"the search type to extract\" -default-value similarity" -value "adams.flow.source.valuedefinition.DirectoryValueDefinition -name output_dir -display \"Output dir\" -help \"the dir to save the text files to\" -file-chooser-title \"Output dir\" -use-forward-slashes true -use-absolute-path true" -output-type MAP -restoration-enabled true -restoration-file @{restore}
+  adams.flow.transformer.MapToVariables
+  adams.flow.transformer.SetVariable -name regexp_run -var-name regexp_run -var-value .*run=@{run_no}.json -expand-value true
+  adams.flow.transformer.SetVariable -name regexp_prompt -var-name regexp_prompt -var-value .*--prompt=@{prompt}--.* -expand-value true
+  adams.flow.transformer.SetVariable -name regexp_context -var-name regexp_context -var-value .*--context=@{context}--.* -expand-value true
+  adams.flow.transformer.SetVariable -name regexp_search -var-name regexp_search -var-value .*--search=@{search}--.* -expand-value true
+ adams.flow.control.Trigger -name process
+  adams.flow.source.FileSystemSearch -output-array true -search "adams.flow.source.filesystemsearch.LocalFileSearch -directory @{input_dir} -regexp .*\\\\.json -sorting SORT_BY_NAME" -use-forward-slashes true
+  adams.flow.control.ConditionalSubProcess -name "specific run?" -condition "adams.flow.condition.bool.Expression -expression \"\\\\\\\"@{run_no}\\\\\\\" != \\\\\\\"\\\\\\\"\""
+   adams.flow.transformer.StringMatcher -regexp @{regexp_run}
+  adams.flow.control.ConditionalSubProcess -name "specific prompt?" -condition "adams.flow.condition.bool.Expression -expression \"\\\\\\\"@{prompt}\\\\\\\" != \\\\\\\"\\\\\\\"\""
+   adams.flow.transformer.StringMatcher -regexp @{regexp_prompt}
+  adams.flow.control.ConditionalSubProcess -name "specific context?" -condition "adams.flow.condition.bool.Expression -expression \"\\\\\\\"@{context}\\\\\\\" != \\\\\\\"\\\\\\\"\""
+   adams.flow.transformer.StringMatcher -regexp @{regexp_context}
+  adams.flow.control.ConditionalSubProcess -name "specific search?" -condition "adams.flow.condition.bool.Expression -expression \"\\\\\\\"@{search}\\\\\\\" != \\\\\\\"\\\\\\\"\""
+   adams.flow.transformer.StringMatcher -regexp @{regexp_search}
+  adams.flow.transformer.ArrayToSequence -name "ArrayToSequence (2)"
+  adams.flow.control.Tee -name "output file"
+   adams.flow.transformer.BaseName
+   adams.flow.transformer.PrependDir -prefix @{output_dir} -use-forward-slashes true
+   adams.flow.transformer.Convert -conversion "adams.data.conversion.ReplaceFileExtension -extension .txt -use-forward-slashes true"
+   adams.flow.transformer.SetVariable -var-name output_file
+  adams.flow.transformer.JsonFileReader -type OBJECT
+  adams.flow.transformer.GetJsonValue -path qna -data-type ARRAY
+  adams.flow.transformer.Convert -conversion adams.data.conversion.JsonArrayToArray
+  adams.flow.transformer.SetVariable -name "append (false)" -var-name append -var-value false
+  adams.flow.transformer.ArrayToSequence
+  adams.flow.control.Tee -name "extract data"
+   adams.flow.control.Tee -name index
+    adams.flow.transformer.GetMapValue -key index
+    adams.flow.transformer.SetVariable -var-name index
+   adams.flow.control.Tee -name question
+    adams.flow.transformer.GetMapValue -key question
+    adams.flow.transformer.SetVariable -var-name question
+   adams.flow.control.Tee -name answer
+    adams.flow.transformer.GetMapValue -key answer
+    adams.flow.transformer.GetMapValue -name "GetMapValue (2)" -key clean
+    adams.flow.transformer.SetVariable -var-name answer
+  adams.flow.control.Trigger -name output
+   adams.flow.source.CombineVariables -expression "Question @{index}:\\n@{question}\\n\\nAnswer @{index}:\\n@{answer}\\n\\n" -conversion adams.data.conversion.StringToString
+   adams.flow.sink.DumpFile -output @{output_file} -append @{append}
+  adams.flow.transformer.SetVariable -name "append (true)" -var-name append -var-value true
