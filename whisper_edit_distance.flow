@@ -1,0 +1,97 @@
+# Project: adams
+# Date: 2024-05-28 10:19:34
+# User: fracpete
+# Charset: UTF-8
+# Modules: adams-bootstrapp,adams-compress,adams-core,adams-db,adams-docker,adams-excel,adams-gnuplot,adams-groovy,adams-imaging,adams-json,adams-latex,adams-math,adams-matlab,adams-meka,adams-ml,adams-ml-app,adams-moa,adams-net,adams-nlp,adams-odf,adams-pyro4,adams-python,adams-r,adams-spreadsheet,adams-visualstats,adams-weka,adams-xml,adams-yaml
+#
+adams.flow.control.Flow -annotation "Computes the edit distance between ground truth transcripts and whisper-generated ones." -flow-execution-listener adams.flow.execution.NullListener -flow-restart-manager adams.flow.control.flowrestart.NullManager
+ adams.flow.standalone.GridView -name Plots -short-title true -display-type adams.flow.core.displaytype.Default -x -3 -num-rows 2 -writer adams.gui.print.NullWriter
+  adams.flow.sink.SequencePlotter -name "Edit distance" -short-title true -display-type adams.flow.core.displaytype.Default -writer adams.gui.print.NullWriter -comparison X_AND_Y -paintlet "adams.gui.visualization.sequence.CirclePaintlet -meta-data-color adams.gui.visualization.sequence.metadatacolor.Dummy" -overlay-paintlet adams.gui.visualization.sequence.NullPaintlet -marker-paintlet adams.flow.sink.sequenceplotter.NoMarkers -error-paintlet adams.flow.sink.sequenceplotter.NoErrorPaintlet -mouse-click-action "adams.flow.sink.sequenceplotter.ViewDataClickAction -hit-detector adams.gui.visualization.sequence.CircleHitDetector" -color-provider adams.gui.visualization.core.DefaultColorProvider -overlay-color-provider adams.gui.visualization.core.DefaultColorProvider -title "Edit distance" -axis-x "adams.gui.visualization.core.AxisPanelOptions -label x -tick-generator adams.gui.visualization.core.axis.FancyTickGenerator -nth-value 2 -width 40 -custom-format 0" -axis-y "adams.gui.visualization.core.AxisPanelOptions -label distance -tick-generator adams.gui.visualization.core.axis.FancyTickGenerator -nth-value 2 -width 60 -custom-format 0.0" -show-side-panel false -plot-updater "adams.flow.sink.sequenceplotter.SimplePlotUpdater -update-interval -1" -post-processor adams.flow.sink.sequenceplotter.PassThrough
+  adams.flow.sink.SequencePlotter -name "Edit distance (relative)" -short-title true -display-type adams.flow.core.displaytype.Default -writer adams.gui.print.NullWriter -comparison X_AND_Y -paintlet "adams.gui.visualization.sequence.CirclePaintlet -meta-data-color adams.gui.visualization.sequence.metadatacolor.Dummy" -overlay-paintlet adams.gui.visualization.sequence.NullPaintlet -marker-paintlet adams.flow.sink.sequenceplotter.NoMarkers -error-paintlet adams.flow.sink.sequenceplotter.NoErrorPaintlet -mouse-click-action "adams.flow.sink.sequenceplotter.ViewDataClickAction -hit-detector adams.gui.visualization.sequence.CircleHitDetector" -color-provider adams.gui.visualization.core.DefaultColorProvider -overlay-color-provider adams.gui.visualization.core.DefaultColorProvider -title "Edit distance (relative)" -axis-x "adams.gui.visualization.core.AxisPanelOptions -label x -tick-generator adams.gui.visualization.core.axis.FancyTickGenerator -nth-value 2 -width 40 -custom-format 0" -axis-y "adams.gui.visualization.core.AxisPanelOptions -label distance -tick-generator adams.gui.visualization.core.axis.FancyTickGenerator -nth-value 2 -width 60 -custom-format 0.0" -show-side-panel false -plot-updater "adams.flow.sink.sequenceplotter.SimplePlotUpdater -update-interval -1" -post-processor adams.flow.sink.sequenceplotter.PassThrough
+ adams.flow.standalone.CallableActors
+  adams.flow.sink.ProgressBar -display-type adams.flow.core.displaytype.Default -writer adams.gui.print.NullWriter -max @{max}
+  adams.flow.control.SubProcess -name "read file"
+   adams.flow.transformer.TextFileReader -reader adams.data.io.input.SingleStringTextReader
+   adams.flow.control.ConditionalSubProcess -name "remove spaces?" -condition "adams.flow.condition.bool.Expression -expression \"@{remove_spaces} = true\""
+    adams.flow.transformer.SimpleStringReplace -find " "
+   adams.flow.control.ConditionalSubProcess -name "lower case?" -condition "adams.flow.condition.bool.Expression -expression \"@{lower_case} = true\""
+    adams.flow.transformer.Convert -conversion adams.data.conversion.LowerCase
+   adams.flow.control.ConditionalSubProcess -name "remove punctuation?" -condition "adams.flow.condition.bool.Expression -expression \"@{remove_punctuation} = true\""
+    adams.flow.transformer.StringSanitizer -acceptable HhKkMmPpRrTtWwNgngAaEeIiOoUuĀāĒēĪīŌōŪū
+  adams.flow.sink.SpreadSheetDisplay -name Table -short-title true -display-type adams.flow.core.displaytype.Default -cell-rendering-customizer adams.gui.core.spreadsheettable.DefaultCellRenderingCustomizer -use-simple-header true -allow-search true -writer adams.data.io.output.NullWriter -preview adams.gui.core.spreadsheetpreview.NullPreview
+ adams.flow.source.Start
+ adams.flow.control.Trigger -name "prompt user"
+  adams.flow.standalone.SetVariable -name "restore file" -var-name restore -var-value @{flow_filename_long}.props -value-type FILE_FORWARD_SLASHES -expand-value true
+  adams.flow.source.EnterManyValues -name Parameters -stop-if-canceled true -value "adams.flow.source.valuedefinition.DirectoryValueDefinition -name actual_dir -display \"Actual dir\" -help \"the directory with the ground truth text files\" -file-chooser-title \"Actual dir\" -use-forward-slashes true -use-absolute-path true" -value "adams.flow.source.valuedefinition.DirectoryValueDefinition -name predicted_dir -display \"Predicted dir\" -help \"the directory with the predicted text files\" -file-chooser-title \"Predicted dir\" -use-forward-slashes true -use-absolute-path true" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name remove_spaces -display \"Remove spaces?\" -type BOOLEAN -default-value false" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name remove_punctuation -display \"Remove punctuation?\" -type BOOLEAN -default-value false" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name lower_case -display \"Lower case?\" -type BOOLEAN -default-value false" -output-type MAP -restoration-enabled true -restoration-file @{restore}
+  adams.flow.transformer.MapToVariables
+ adams.flow.control.Trigger -name "init sheet"
+  adams.flow.source.NewSpreadSheet -columns file,edit_distance,edit_distance_relative,actual,predicted -data-row-type adams.data.spreadsheet.DenseDataRow -spreadsheet-type adams.data.spreadsheet.DefaultSpreadSheet
+  adams.flow.transformer.SetStorageValue -storage-name sheet
+ adams.flow.control.Trigger -name process
+  adams.flow.standalone.SetVariable -name reset -var-name count -var-value 0
+  adams.flow.source.FileSystemSearch -output-array true -search "adams.flow.source.filesystemsearch.LocalFileSearch -directory @{actual_dir} -regexp .*\\\\.txt -sorting SORT_BY_NAME" -use-forward-slashes true
+  adams.flow.control.Tee -name "# files"
+   adams.flow.transformer.ArrayLength
+   adams.flow.transformer.SetVariable -var-name max
+  adams.flow.transformer.ArrayToSequence
+  adams.flow.control.Tee -name "actual file"
+   adams.flow.transformer.SetVariable -var-name actual_file
+   adams.flow.control.Tee -name name
+    adams.flow.transformer.BaseName -remove-extensions true
+    adams.flow.transformer.SetVariable -var-name name
+   adams.flow.transformer.CallableTransformer -callable "read file"
+   adams.flow.transformer.SetVariable -name "SetVariable (2)" -var-name actual_string
+   adams.flow.transformer.StringLength
+   adams.flow.transformer.SetVariable -name "SetVariable (3)" -var-name actual_length
+  adams.flow.control.Tee -name progress
+   adams.flow.transformer.IncVariable -var-name count -output-variable-value true
+   adams.flow.sink.CallableSink -callable ProgressBar
+  adams.flow.transformer.SetVariable -name "reset distance" -var-name distance -var-value -1
+  adams.flow.transformer.SetVariable -name "reset rel distance" -var-name distance_rel -var-value -1
+  adams.flow.control.Tee -name "predicted file"
+   adams.flow.transformer.BaseName
+   adams.flow.transformer.PrependDir -prefix @{predicted_dir} -use-forward-slashes true
+   adams.flow.transformer.SetVariable -var-name predicted_file
+   adams.flow.control.ConditionalTee -name "load actual file" -condition "adams.flow.condition.bool.FileExists -file @{predicted_file} -generator adams.core.io.NullFilenameGenerator"
+    adams.flow.transformer.CallableTransformer -callable "read file"
+    adams.flow.transformer.SetVariable -var-name predicted_string
+    adams.flow.control.Trigger -name "compute distance"
+     adams.flow.source.VariablesArray -var-name actual_string -var-name predicted_string -conversion adams.data.conversion.StringToString
+     adams.flow.transformer.EditDistance
+     adams.flow.transformer.SetVariable -var-name distance
+    adams.flow.transformer.StringLength
+    adams.flow.transformer.SetVariable -name "SetVariable (2)" -var-name predicted_length
+    adams.flow.control.Trigger -name "compute relative distance"
+     adams.flow.source.MathExpression -expression "@{distance} / @{actual_length}"
+     adams.flow.transformer.SetVariable -var-name distance_rel
+  adams.flow.control.Trigger -name "add row"
+   adams.flow.source.StorageValue -storage-name sheet -conversion adams.data.conversion.UnknownToUnknown
+   adams.flow.transformer.SpreadSheetInsertRow -no-copy true -after true
+   adams.flow.transformer.SpreadSheetSetCell -name name -no-copy true -row last -finder adams.data.spreadsheet.cellfinder.CellRange -value @{name} -force-string true
+   adams.flow.transformer.SpreadSheetSetCell -name distance -no-copy true -row last -col 2 -finder adams.data.spreadsheet.cellfinder.CellRange -value @{distance}
+   adams.flow.transformer.SpreadSheetSetCell -name "distance (rel)" -no-copy true -row last -col 3 -finder adams.data.spreadsheet.cellfinder.CellRange -value @{distance_rel}
+   adams.flow.transformer.SpreadSheetSetCell -name actual -no-copy true -row last -col 4 -finder adams.data.spreadsheet.cellfinder.CellRange -value @{actual_string} -force-string true
+   adams.flow.transformer.SpreadSheetSetCell -name predicted -no-copy true -row last -col 5 -finder adams.data.spreadsheet.cellfinder.CellRange -value @{predicted_string} -force-string true
+   adams.flow.transformer.SetStorageValue -storage-name sheet
+ adams.flow.control.CloseCallableDisplay -callable ProgressBar
+ adams.flow.control.Trigger -name display
+  adams.flow.source.StorageValue -storage-name sheet -conversion adams.data.conversion.UnknownToUnknown
+  adams.flow.sink.CallableSink -callable Table
+ adams.flow.control.Trigger -name "plot edit distance"
+  adams.flow.source.StorageValue -storage-name sheet -conversion adams.data.conversion.UnknownToUnknown
+  adams.flow.transformer.SpreadSheetSort -sort-column edit_distance
+  adams.flow.transformer.SpreadSheetPlotGenerator -generator "adams.flow.transformer.plotgenerator.SimplePlotGenerator -columns edit_distance -meta-data-columns file,edit_distance,edit_distance_relative,actual,predicted"
+  adams.flow.control.PlotContainerUpdater -container-value PLOT_NAME
+   adams.flow.control.Cast
+   adams.flow.control.Injector -location INPLACE -injection edit_distance -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.Convert -conversion adams.data.conversion.AnyToString
+  adams.flow.sink.CallableSink -callable "Edit distance"
+ adams.flow.control.Trigger -name "plot edit distance (rel)"
+  adams.flow.source.StorageValue -storage-name sheet -conversion adams.data.conversion.UnknownToUnknown
+  adams.flow.transformer.SpreadSheetSort -sort-column edit_distance_relative
+  adams.flow.transformer.SpreadSheetPlotGenerator -generator "adams.flow.transformer.plotgenerator.SimplePlotGenerator -columns edit_distance_relative -meta-data-columns file,edit_distance,edit_distance_relative,actual,predicted"
+  adams.flow.control.PlotContainerUpdater -container-value PLOT_NAME
+   adams.flow.control.Cast
+   adams.flow.control.Injector -location INPLACE -injection edit_distance_rel -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.Convert -conversion adams.data.conversion.AnyToString
+  adams.flow.sink.CallableSink -callable "Edit distance (relative)"
